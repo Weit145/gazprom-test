@@ -14,15 +14,18 @@ class User(BaseModel):
 class CreateUser(User):
     name: str = Field(..., description="Name of the user")
 
+
 class OutUser(User):
     id: uuid.UUID
     name: str = Field(..., description="Name of the user")
     created_at: datetime.datetime
 
+
 class UserDevice(BaseModel):
     user_id: uuid.UUID
     device_id: uuid.UUID
     created_at: datetime.datetime
+
 
 class UserAnalytics(User):
     id: uuid.UUID

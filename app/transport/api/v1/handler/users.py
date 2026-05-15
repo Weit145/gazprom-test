@@ -14,7 +14,7 @@ router = APIRouter(tags=["Users"])
 async def create_user(
     user: Annotated[CreateUser, Body(title="The user data")],
     session: Annotated[AsyncSession, Depends(db_helper.get_session)],
-)->OutUser:
+) -> OutUser:
     return await service.create_user(user, session)
 
 
@@ -23,7 +23,7 @@ async def create_user_device(
     user_id: Annotated[uuid.UUID, Path(title="The ID of the user")],
     device_id: Annotated[uuid.UUID, Path(title="The ID of the device")],
     session: Annotated[AsyncSession, Depends(db_helper.get_session)],
-)->UserDevice:
+) -> UserDevice:
     return await service.add_device_to_user(user_id, device_id, session)
 
 
@@ -33,5 +33,5 @@ async def get_user_analytics(
     session: Annotated[AsyncSession, Depends(db_helper.get_session)],
     date_from: Annotated[Optional[datetime.datetime], Query(title="Start date of the period")] = None,
     date_to: Annotated[Optional[datetime.datetime], Query(title="End date of the period")] = None,
-)->UserAnalytics:
+) -> UserAnalytics:
     return await service.get_user_analytics(user_id, date_from, date_to, session)

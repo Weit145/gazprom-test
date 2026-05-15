@@ -12,10 +12,10 @@ router = APIRouter(tags=["Devices"])
 
 @router.post("/devices/{device_id}", status_code=status.HTTP_201_CREATED, response_model=OutDevice)
 async def create_device_data(
-    device_id: Annotated[uuid.UUID, Path(title="The ID of the booking to cancel")],
+    device_id: Annotated[uuid.UUID, Path(title="The ID of the device")],
     device: Annotated[CreateDevice, Body(title="The device data")],
     session: Annotated[AsyncSession, Depends(db_helper.get_session)],
-)->OutDevice:
+) -> OutDevice:
     return await service.create_device_data(device_id, device, session)
 
 
@@ -25,5 +25,5 @@ async def get_device_analytics(
     session: Annotated[AsyncSession, Depends(db_helper.get_session)],
     date_from: Annotated[Optional[datetime.datetime], Query(title="Start date of the period")] = None,
     date_to: Annotated[Optional[datetime.datetime], Query(title="End date of the period")] = None,
-)->DeviceAnalytics:
+) -> DeviceAnalytics:
     return await service.get_device_analytics(device_id, date_from, date_to, session)

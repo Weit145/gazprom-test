@@ -111,6 +111,19 @@ class SQLAlchemyRepository:
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def is_device_analytics_cache_fresh(
+        self,
+        device_id: uuid.UUID,
+        updated_at: datetime.datetime,
+        session: AsyncSession,
+    ) -> bool:
+        stmt = select(func.max(DeviceData.created_at)).where(
+            DeviceData.device_id == device_id
+        )
+        result = await session.execute(stmt)
+        latest_data_created_at = result.scalar_one_or_none()
+        return latest_data_created_at is None or updated_at >= latest_data_created_at
+
     async def upsert_device_analytics_cache(
         self,
         device_id: uuid.UUID,

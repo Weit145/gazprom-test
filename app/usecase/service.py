@@ -4,6 +4,7 @@ import uuid
 
 from fastapi import HTTPException, status
 from sqlalchemy.engine import RowMapping
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.tasks import recalculate_device_analytics
@@ -63,6 +64,7 @@ class Service:
         date_to: datetime.datetime | None,
         session: AsyncSession,
     ) -> DeviceAnalytics:
+        self._validate_period(date_from, date_to)
         device = await self.repo.get_device_by_id(device_id, session)
         if device is None:
             raise HTTPException(
@@ -72,7 +74,11 @@ class Service:
 
         if date_from is None and date_to is None:
             cache = await self.repo.get_device_analytics_cache(device_id, session)
-            if cache is not None:
+            if cache is not None and await self.repo.is_device_analytics_cache_fresh(
+                device_id,
+                cache.updated_at,
+                session,
+            ):
                 return self._to_device_analytics_from_cache(cache)
 
         row = await self.repo.get_device_analytics(device_id, date_from, date_to, session)
@@ -83,7 +89,15 @@ class Service:
         user: CreateUser,
         session: AsyncSession,
     ) -> OutUser:
-        result = await self.repo.create_user(User(name=user.name), session)
+        try:
+            result = await self.repo.create_user(User(name=user.name), session)
+        except IntegrityError as exc:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="User with this name already exists",
+            ) from exc
+
         return OutUser(
             id=result.id,
             name=result.name,
@@ -116,6 +130,7 @@ class Service:
         date_to: datetime.datetime | None,
         session: AsyncSession,
     ) -> UserAnalytics:
+        self._validate_period(date_from, date_to)
         user = await self.repo.get_user_by_id(user_id, session)
         if user is None:
             raise HTTPException(
@@ -161,7 +176,7 @@ class Service:
     ) -> DeviceAnalytics:
         return DeviceAnalytics(
             id=cache.device_id,
-            period=Period(date_from= None,date_to=None),
+            period=Period(date_from=None, date_to=None),
             x=self._to_data_point_from_cache(cache, "x"),
             y=self._to_data_point_from_cache(cache, "y"),
             z=self._to_data_point_from_cache(cache, "z"),
@@ -201,6 +216,17 @@ class Service:
             sum=getattr(cache, f"{prefix}_sum"),
             median=getattr(cache, f"{prefix}_median"),
         )
+
+    def _validate_period(
+        self,
+        date_from: datetime.datetime | None,
+        date_to: datetime.datetime | None,
+    ) -> None:
+        if date_from is not None and date_to is not None and date_from > date_to:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="date_from must be less than or equal to date_to",
+            )
 
 
 service = Service()
