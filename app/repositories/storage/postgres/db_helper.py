@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import (
+    AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
@@ -24,11 +26,17 @@ class DatabaseHellper:
         async with self.session_factory() as session:
             try:
                 yield session
-                await session.commit()
+                if session.in_transaction():
+                    await session.commit()
             except Exception as e:
-                await session.rollback()
+                if session.in_transaction():
+                    await session.rollback()
                 logger.error(f"Falid transaction error:{e}")
                 raise e
+
+    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
+        async with self.transaction() as session:
+            yield session
 
 
 db_helper = DatabaseHellper(url=settings.database_url)

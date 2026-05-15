@@ -1,150 +1,215 @@
+import datetime
+import uuid
+from typing import Optional
 
-# class SQLAlchemyAuthRepository:
-#     async def create_room(self, room: Room, session: AsyncSession) -> Room:
-#         session.add(room)
-#         await session.flush()
-#         await session.refresh(room)
-#         return room
+from sqlalchemy import and_, func, select
+from sqlalchemy.engine import RowMapping
+from sqlalchemy.ext.asyncio import AsyncSession
 
-#     async def get_rooms_count(self, session: AsyncSession) -> int | None:
-#         stmt = select(func.count()).select_from(Room)
-#         result = await session.execute(stmt)
-#         return result.scalar()
+from app.repositories.storage.models import Device, DeviceAnalyticsCache, DeviceData, User
 
-#     async def list_rooms_paginated(
-#         self, offset: int, page_size: int, session: AsyncSession
-#     ) -> List[Room]:
-#         stmt = (
-#             select(Room)
-#             .offset(offset)
-#             .limit(page_size)
-#             .order_by(Room.created_at.desc())
-#         )
-#         result = await session.execute(stmt)
-#         return list(result.scalars().all())
 
-#     async def get_room_by_id(
-#         self, roomId: uuid.UUID, session: AsyncSession
-#     ) -> Room | None:
-#         return await session.get(Room, roomId)
+class SQLAlchemyRepository:
+    async def create_user(self, user: User, session: AsyncSession) -> User:
+        session.add(user)
+        await session.flush()
+        await session.refresh(user)
+        return user
 
-#     async def get_schedule_by_room_id(
-#         self, roomId: uuid.UUID, session: AsyncSession
-#     ) -> Schedule | None:
-#         stmt = select(Schedule).where(Schedule.room_id == roomId)
-#         result = await session.execute(stmt)
-#         return result.scalar_one_or_none()
+    async def get_user_by_id(
+        self,
+        user_id: uuid.UUID,
+        session: AsyncSession,
+    ) -> User | None:
+        return await session.get(User, user_id)
 
-#     async def create_schedule(
-#         self, schedule: Schedule, session: AsyncSession
-#     ) -> Schedule:
-#         session.add(schedule)
-#         await session.flush()
-#         await session.refresh(schedule)
-#         return schedule
+    async def create_device(self, device: Device, session: AsyncSession) -> Device:
+        session.add(device)
+        await session.flush()
+        await session.refresh(device)
+        return device
 
-#     async def exists_slots_in_range(
-#         self,
-#         roomId: uuid.UUID,
-#         start_of_day: datetime,
-#         end_of_day: datetime,
-#         session: AsyncSession,
-#     ) -> bool | None:
-#         stmt = select(
-#             exists().where(
-#                 Slot.room_id == roomId,
-#                 Slot.start >= start_of_day,
-#                 Slot.start < end_of_day,
-#             )
-#         )
-#         result = await session.execute(stmt)
-#         return result.scalar()
+    async def get_device_by_id(
+        self,
+        device_id: uuid.UUID,
+        session: AsyncSession,
+    ) -> Device | None:
+        return await session.get(Device, device_id)
 
-#     async def list_available_slots(
-#         self,
-#         roomId: uuid.UUID,
-#         start_of_day: datetime,
-#         end_of_day: datetime,
-#         session: AsyncSession,
-#     ) -> List[Slot]:
-#         stmt = (
-#             select(Slot)
-#             .where(
-#                 Slot.room_id == roomId,
-#                 Slot.start >= start_of_day,
-#                 Slot.start < end_of_day,
-#                 ~Slot.booking.has(Booking.status == "active"),
-#             )
-#             .order_by(Slot.start)
-#         )
-#         result = await session.execute(stmt)
-#         return list(result.scalars().all())
+    async def get_or_create_device(
+        self,
+        device_id: uuid.UUID,
+        session: AsyncSession,
+    ) -> Device:
+        device = await self.get_device_by_id(device_id, session)
+        if device is not None:
+            return device
 
-#     async def create_slots(
-#         self, slots: List[Slot], session: AsyncSession
-#     ) -> List[Slot]:
-#         session.add_all(slots)
-#         await session.flush()
-#         return slots
+        device = Device(id=device_id)
+        return await self.create_device(device, session)
 
-#     async def get_slot_by_id(self, id: uuid.UUID, session: AsyncSession) -> Slot | None:
-#         stmt = select(Slot).where(Slot.id == id).with_for_update()
-#         result = await session.execute(stmt)
-#         return result.scalar_one_or_none()
+    async def create_device_data(
+        self,
+        device_data: DeviceData,
+        session: AsyncSession,
+    ) -> DeviceData:
+        session.add(device_data)
+        await session.flush()
+        await session.refresh(device_data)
+        return device_data
 
-#     async def get_booking_by_slot_id(
-#         self, slot_id: uuid.UUID, session: AsyncSession
-#     ) -> Booking | None:
-#         stmt = select(Booking).where(Booking.slot_id == slot_id).with_for_update()
-#         result = await session.execute(stmt)
-#         return result.scalar_one_or_none()
+    async def add_device_to_user(
+        self,
+        user_id: uuid.UUID,
+        device_id: uuid.UUID,
+        session: AsyncSession,
+    ) -> Device | None:
+        user = await self.get_user_by_id(user_id, session)
+        if user is None:
+            return None
 
-#     async def create_booking(self, booking: Booking, session: AsyncSession) -> Booking:
-#         session.add(booking)
-#         await session.flush()
-#         await session.refresh(booking)
-#         return booking
+        device = await self.get_or_create_device(device_id, session)
+        device.user_id = user.id
+        session.add(device)
+        await session.flush()
+        await session.refresh(device)
+        return device
 
-#     async def get_bookings_count(self, session: AsyncSession) -> int | None:
-#         stmt = select(func.count()).select_from(Booking)
-#         result = await session.execute(stmt)
-#         return result.scalar()
+    async def list_user_devices(
+        self,
+        user_id: uuid.UUID,
+        session: AsyncSession,
+    ) -> list[Device]:
+        stmt = select(Device).where(Device.user_id == user_id)
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
 
-#     async def list_bookings_paginated(
-#         self, offset: int, page_size: int, session: AsyncSession
-#     ) -> List[Booking]:
-#         stmt = (
-#             select(Booking)
-#             .offset(offset)
-#             .limit(page_size)
-#             .order_by(Booking.created_at.desc())
-#         )
-#         result = await session.execute(stmt)
-#         return list(result.scalars().all())
+    async def get_device_analytics(
+        self,
+        device_id: uuid.UUID,
+        date_from: Optional[datetime.datetime],
+        date_to: Optional[datetime.datetime],
+        session: AsyncSession,
+    ) -> RowMapping:
+        stmt = (
+            select(*self._analytics_columns())
+            .select_from(DeviceData)
+            .where(DeviceData.device_id == device_id)
+        )
+        stmt = self._with_period(stmt, date_from, date_to)
+        result = await session.execute(stmt)
+        return result.mappings().one()
 
-#     async def list_user_bookings(
-#         self, time_now: datetime, user_id: uuid.UUID, session: AsyncSession
-#     ) -> List[Booking]:
-#         stmt = (
-#             select(Booking)
-#             .join(Slot, Booking.slot_id == Slot.id)
-#             .where(
-#                 Booking.user_id == user_id,
-#                 Booking.status == "active",
-#                 Slot.start >= time_now,
-#             )
-#             .order_by(Slot.start)
-#         )
-#         result = await session.execute(stmt)
-#         return list(result.scalars().all())
+    async def get_device_analytics_cache(
+        self,
+        device_id: uuid.UUID,
+        session: AsyncSession,
+    ) -> DeviceAnalyticsCache | None:
+        stmt = select(DeviceAnalyticsCache).where(
+            DeviceAnalyticsCache.device_id == device_id
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
 
-#     async def read_booking_by_id(
-#         self, bookingId: uuid.UUID, session: AsyncSession
-#     ) -> Booking | None:
-#         return await session.get(Booking, bookingId)
+    async def upsert_device_analytics_cache(
+        self,
+        device_id: uuid.UUID,
+        analytics: RowMapping,
+        session: AsyncSession,
+    ) -> DeviceAnalyticsCache:
+        cache = await self.get_device_analytics_cache(device_id, session)
+        if cache is None:
+            cache = DeviceAnalyticsCache(device_id=device_id)
 
-#     async def update_booking(self, booking: Booking, session: AsyncSession) -> Booking:
-#         session.add(booking)
-#         await session.flush()
-#         await session.refresh(booking)
-#         return booking
+        self._fill_analytics_cache(cache, analytics)
+        cache.updated_at = datetime.datetime.now(datetime.timezone.utc)
+        session.add(cache)
+        await session.flush()
+        await session.refresh(cache)
+        return cache
+
+    async def get_user_analytics(
+        self,
+        user_id: uuid.UUID,
+        date_from: Optional[datetime.datetime],
+        date_to: Optional[datetime.datetime],
+        session: AsyncSession,
+    ) -> RowMapping:
+        stmt = (
+            select(*self._analytics_columns())
+            .select_from(DeviceData)
+            .join(Device, Device.id == DeviceData.device_id)
+            .where(Device.user_id == user_id)
+        )
+        stmt = self._with_period(stmt, date_from, date_to)
+        result = await session.execute(stmt)
+        return result.mappings().one()
+
+    async def list_user_devices_analytics(
+        self,
+        user_id: uuid.UUID,
+        date_from: Optional[datetime.datetime],
+        date_to: Optional[datetime.datetime],
+        session: AsyncSession,
+    ) -> list[RowMapping]:
+        join_condition = self._device_data_join_condition(date_from, date_to)
+        stmt = (
+            select(Device.id.label("device_id"), *self._analytics_columns())
+            .select_from(Device)
+            .outerjoin(DeviceData, join_condition)
+            .where(Device.user_id == user_id)
+            .group_by(Device.id)
+        )
+        result = await session.execute(stmt)
+        return list(result.mappings().all())
+
+    def _device_data_join_condition(self, date_from, date_to):
+        conditions = [Device.id == DeviceData.device_id]
+        if date_from is not None:
+            conditions.append(DeviceData.created_at >= date_from)
+        if date_to is not None:
+            conditions.append(DeviceData.created_at <= date_to)
+        return and_(*conditions)
+
+    def _with_period(self, stmt, date_from, date_to):
+        if date_from is not None:
+            stmt = stmt.where(DeviceData.created_at >= date_from)
+        if date_to is not None:
+            stmt = stmt.where(DeviceData.created_at <= date_to)
+        return stmt
+
+    def _analytics_columns(self):
+        return (
+            func.coalesce(func.min(DeviceData.x), 0.0).label("x_min"),
+            func.coalesce(func.max(DeviceData.x), 0.0).label("x_max"),
+            func.count(DeviceData.x).label("x_count"),
+            func.coalesce(func.sum(DeviceData.x), 0.0).label("x_sum"),
+            func.coalesce(func.percentile_cont(0.5).within_group(DeviceData.x), 0.0).label("x_median"),
+
+            func.coalesce(func.min(DeviceData.y), 0.0).label("y_min"),
+            func.coalesce(func.max(DeviceData.y), 0.0).label("y_max"),
+            func.count(DeviceData.y).label("y_count"),
+            func.coalesce(func.sum(DeviceData.y), 0.0).label("y_sum"),
+            func.coalesce(func.percentile_cont(0.5).within_group(DeviceData.y), 0.0).label("y_median"),
+            
+            func.coalesce(func.min(DeviceData.z), 0.0).label("z_min"),
+            func.coalesce(func.max(DeviceData.z), 0.0).label("z_max"),
+            func.count(DeviceData.z).label("z_count"),
+            func.coalesce(func.sum(DeviceData.z), 0.0).label("z_sum"),
+            func.coalesce(func.percentile_cont(0.5).within_group(DeviceData.z), 0.0).label("z_median"),
+        )
+
+    def _fill_analytics_cache(
+        self,
+        cache: DeviceAnalyticsCache,
+        analytics: RowMapping,
+    ) -> None:
+        for prefix in ("x", "y", "z"):
+            setattr(cache, f"{prefix}_min", float(analytics[f"{prefix}_min"] or 0.0))
+            setattr(cache, f"{prefix}_max", float(analytics[f"{prefix}_max"] or 0.0))
+            setattr(cache, f"{prefix}_count", int(analytics[f"{prefix}_count"] or 0))
+            setattr(cache, f"{prefix}_sum", float(analytics[f"{prefix}_sum"] or 0.0))
+            setattr(cache, f"{prefix}_median", float(analytics[f"{prefix}_median"] or 0.0))
+
+
+repository = SQLAlchemyRepository()

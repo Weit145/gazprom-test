@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 import uvicorn
 
 from fastapi import FastAPI, status
+from .transport.api.v1.handler.devices import router as devices_router
+from .transport.api.v1.handler.users import router as users_router
 
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,9 @@ app = FastAPI(
     title="Gazprom TEST",
     swagger_ui_parameters={"persistAuthorization": True},
 )
+
+app.include_router(devices_router)
+app.include_router(users_router)
 
 @app.get("/_info", status_code=status.HTTP_200_OK)
 async def info():
