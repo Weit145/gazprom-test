@@ -65,9 +65,33 @@ class DuplicateUserRepo:
         raise IntegrityError("insert user", {}, Exception("duplicate"))
 
 
+class SuccessfulUserRepo:
+    async def create_user(self, user, session):
+        return SimpleNamespace(
+            id=uuid.uuid4(),
+            name=user.name,
+            created_at=datetime.datetime.now(datetime.timezone.utc),
+        )
+
+
+class AddDeviceToUserRepo:
+    def __init__(self, device_id: uuid.UUID):
+        self.device_id = device_id
+
+    async def add_device_to_user(self, user_id, device_id, session):
+        return SimpleNamespace(
+            id=device_id,
+            created_at=datetime.datetime.now(datetime.timezone.utc),
+        )
+
+
 class DummySession:
     def __init__(self):
+        self.committed = False
         self.rolled_back = False
+
+    async def commit(self):
+        self.committed = True
 
     async def rollback(self):
         self.rolled_back = True
@@ -129,3 +153,28 @@ def test_create_user_returns_conflict_on_duplicate_name():
 
     assert exc_info.value.status_code == status.HTTP_409_CONFLICT
     assert session.rolled_back is True
+
+
+def test_create_user_commits_before_returning_response():
+    service = Service()
+    service.repo = SuccessfulUserRepo()
+    session = DummySession()
+
+    result = asyncio.run(service.create_user(CreateUser(name="alex"), session))
+
+    assert result.name == "alex"
+    assert session.committed is True
+
+
+def test_add_device_to_user_commits_before_returning_response():
+    user_id = uuid.uuid4()
+    device_id = uuid.uuid4()
+    service = Service()
+    service.repo = AddDeviceToUserRepo(device_id)
+    session = DummySession()
+
+    result = asyncio.run(service.add_device_to_user(user_id, device_id, session))
+
+    assert result.user_id == user_id
+    assert result.device_id == device_id
+    assert session.committed is True

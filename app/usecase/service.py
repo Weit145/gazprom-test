@@ -98,6 +98,7 @@ class Service:
                 detail="User with this name already exists",
             ) from exc
 
+        await session.commit()
         return OutUser(
             id=result.id,
             name=result.name,
@@ -117,6 +118,7 @@ class Service:
                 detail="User not found",
             )
 
+        await session.commit()
         return UserDevice(
             user_id=user_id,
             device_id=device.id,

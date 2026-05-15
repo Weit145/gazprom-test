@@ -3,6 +3,7 @@ import uuid
 from typing import Optional
 
 from sqlalchemy import and_, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -130,16 +131,22 @@ class SQLAlchemyRepository:
         analytics: RowMapping,
         session: AsyncSession,
     ) -> DeviceAnalyticsCache:
-        cache = await self.get_device_analytics_cache(device_id, session)
-        if cache is None:
-            cache = DeviceAnalyticsCache(device_id=device_id)
-
-        self._fill_analytics_cache(cache, analytics)
-        cache.updated_at = datetime.datetime.now(datetime.timezone.utc)
-        session.add(cache)
-        await session.flush()
-        await session.refresh(cache)
-        return cache
+        values = self._analytics_cache_values(device_id, analytics)
+        insert_stmt = insert(DeviceAnalyticsCache).values(**values)
+        update_values = {
+            key: getattr(insert_stmt.excluded, key)
+            for key in values
+            if key != "device_id"
+        }
+        stmt = (
+            insert_stmt.on_conflict_do_update(
+                index_elements=[DeviceAnalyticsCache.device_id],
+                set_=update_values,
+            )
+            .returning(DeviceAnalyticsCache)
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one()
 
     async def get_user_analytics(
         self,
@@ -212,17 +219,22 @@ class SQLAlchemyRepository:
             func.coalesce(func.percentile_cont(0.5).within_group(DeviceData.z), 0.0).label("z_median"),
         )
 
-    def _fill_analytics_cache(
+    def _analytics_cache_values(
         self,
-        cache: DeviceAnalyticsCache,
+        device_id: uuid.UUID,
         analytics: RowMapping,
-    ) -> None:
+    ) -> dict[str, float | int | uuid.UUID | datetime.datetime]:
+        values: dict[str, float | int | uuid.UUID | datetime.datetime] = {
+            "device_id": device_id,
+            "updated_at": datetime.datetime.now(datetime.timezone.utc),
+        }
         for prefix in ("x", "y", "z"):
-            setattr(cache, f"{prefix}_min", float(analytics[f"{prefix}_min"] or 0.0))
-            setattr(cache, f"{prefix}_max", float(analytics[f"{prefix}_max"] or 0.0))
-            setattr(cache, f"{prefix}_count", int(analytics[f"{prefix}_count"] or 0))
-            setattr(cache, f"{prefix}_sum", float(analytics[f"{prefix}_sum"] or 0.0))
-            setattr(cache, f"{prefix}_median", float(analytics[f"{prefix}_median"] or 0.0))
+            values[f"{prefix}_min"] = float(analytics[f"{prefix}_min"] or 0.0)
+            values[f"{prefix}_max"] = float(analytics[f"{prefix}_max"] or 0.0)
+            values[f"{prefix}_count"] = int(analytics[f"{prefix}_count"] or 0)
+            values[f"{prefix}_sum"] = float(analytics[f"{prefix}_sum"] or 0.0)
+            values[f"{prefix}_median"] = float(analytics[f"{prefix}_median"] or 0.0)
+        return values
 
 
 repository = SQLAlchemyRepository()

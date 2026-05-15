@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from typing import Any
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -13,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseHelper:
-    def __init__(self, url: str, echo: bool = False):
-        self.engine = create_async_engine(url=url, echo=echo)
+    def __init__(self, url: str, echo: bool = False, **engine_kwargs: Any):
+        self.engine = create_async_engine(url=url, echo=echo, **engine_kwargs)
         self.session_factory = async_sessionmaker(
             bind=self.engine,
             autoflush=False,
