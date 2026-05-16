@@ -29,6 +29,7 @@ app = FastAPI(
 app.include_router(devices_router)
 app.include_router(users_router)
 
+
 @app.get("/_info", status_code=status.HTTP_200_OK)
 async def info():
     return status.HTTP_200_OK

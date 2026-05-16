@@ -1,4 +1,10 @@
-from app.domain.analytics import Analytics, DataPoint, DeviceAnalytics, Period, UserAnalytics
+from app.domain.analytics import (
+    Analytics,
+    DataPoint,
+    DeviceAnalytics,
+    Period,
+    UserAnalytics,
+)
 from app.domain.device import Device, DeviceData
 from app.domain.user import User
 

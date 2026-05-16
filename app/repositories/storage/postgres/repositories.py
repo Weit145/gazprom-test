@@ -7,7 +7,12 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repositories.storage.models import Device, DeviceAnalyticsCache, DeviceData, User
+from app.repositories.storage.models import (
+    Device,
+    DeviceAnalyticsCache,
+    DeviceData,
+    User,
+)
 
 
 class SQLAlchemyRepository:
@@ -64,7 +69,7 @@ class SQLAlchemyRepository:
         user_id: uuid.UUID,
         device_id: uuid.UUID,
         session: AsyncSession,
-    ) -> Device | None:
+    ) -> Optional[Device]:
         user = await self.get_user_by_id(user_id, session)
         if user is None:
             return None
@@ -105,7 +110,7 @@ class SQLAlchemyRepository:
         self,
         device_id: uuid.UUID,
         session: AsyncSession,
-    ) -> DeviceAnalyticsCache | None:
+    ) -> Optional[DeviceAnalyticsCache]:
         stmt = select(DeviceAnalyticsCache).where(
             DeviceAnalyticsCache.device_id == device_id
         )
@@ -125,6 +130,7 @@ class SQLAlchemyRepository:
         latest_data_created_at = result.scalar_one_or_none()
         return latest_data_created_at is None or updated_at >= latest_data_created_at
 
+    # Вставить или обновить
     async def upsert_device_analytics_cache(
         self,
         device_id: uuid.UUID,
@@ -133,18 +139,16 @@ class SQLAlchemyRepository:
     ) -> DeviceAnalyticsCache:
         values = self._analytics_cache_values(device_id, analytics)
         insert_stmt = insert(DeviceAnalyticsCache).values(**values)
+        # update_values словарь для обновления, исключая device_id
         update_values = {
             key: getattr(insert_stmt.excluded, key)
             for key in values
             if key != "device_id"
         }
-        stmt = (
-            insert_stmt.on_conflict_do_update(
-                index_elements=[DeviceAnalyticsCache.device_id],
-                set_=update_values,
-            )
-            .returning(DeviceAnalyticsCache)
-        )
+        stmt = insert_stmt.on_conflict_do_update(
+            index_elements=[DeviceAnalyticsCache.device_id],
+            set_=update_values,
+        ).returning(DeviceAnalyticsCache)
         result = await session.execute(stmt)
         return result.scalar_one()
 
@@ -198,25 +202,30 @@ class SQLAlchemyRepository:
             stmt = stmt.where(DeviceData.created_at <= date_to)
         return stmt
 
+    # Аналитика coalesce если вывод None то делает по дефолту 2 аргумент
     def _analytics_columns(self):
         return (
             func.coalesce(func.min(DeviceData.x), 0.0).label("x_min"),
             func.coalesce(func.max(DeviceData.x), 0.0).label("x_max"),
             func.count(DeviceData.x).label("x_count"),
             func.coalesce(func.sum(DeviceData.x), 0.0).label("x_sum"),
-            func.coalesce(func.percentile_cont(0.5).within_group(DeviceData.x), 0.0).label("x_median"),
-
+            func.coalesce(
+                func.percentile_cont(0.5).within_group(DeviceData.x), 0.0
+            ).label("x_median"),
             func.coalesce(func.min(DeviceData.y), 0.0).label("y_min"),
             func.coalesce(func.max(DeviceData.y), 0.0).label("y_max"),
             func.count(DeviceData.y).label("y_count"),
             func.coalesce(func.sum(DeviceData.y), 0.0).label("y_sum"),
-            func.coalesce(func.percentile_cont(0.5).within_group(DeviceData.y), 0.0).label("y_median"),
-            
+            func.coalesce(
+                func.percentile_cont(0.5).within_group(DeviceData.y), 0.0
+            ).label("y_median"),
             func.coalesce(func.min(DeviceData.z), 0.0).label("z_min"),
             func.coalesce(func.max(DeviceData.z), 0.0).label("z_max"),
             func.count(DeviceData.z).label("z_count"),
             func.coalesce(func.sum(DeviceData.z), 0.0).label("z_sum"),
-            func.coalesce(func.percentile_cont(0.5).within_group(DeviceData.z), 0.0).label("z_median"),
+            func.coalesce(
+                func.percentile_cont(0.5).within_group(DeviceData.z), 0.0
+            ).label("z_median"),
         )
 
     def _analytics_cache_values(

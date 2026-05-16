@@ -1,11 +1,14 @@
 from datetime import datetime, timezone
 import uuid
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import DateTime, ForeignKey, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+
+if TYPE_CHECKING:
+    from .user import User
 
 
 class Device(Base):
@@ -27,7 +30,9 @@ class Device(Base):
 
     user: Mapped[Optional["User"]] = relationship(back_populates="devices")
     data: Mapped[list["DeviceData"]] = relationship(back_populates="device")
-    analytics: Mapped[Optional["DeviceAnalyticsCache"]] = relationship(back_populates="device")
+    analytics: Mapped[Optional["DeviceAnalyticsCache"]] = relationship(
+        back_populates="device"
+    )
 
 
 class DeviceData(Base):
@@ -81,7 +86,7 @@ class DeviceAnalyticsCache(Base):
     z_count: Mapped[int] = mapped_column(nullable=False, default=0)
     z_sum: Mapped[float] = mapped_column(nullable=False, default=0.0)
     z_median: Mapped[float] = mapped_column(nullable=False, default=0.0)
-    
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

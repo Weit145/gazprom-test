@@ -1,8 +1,14 @@
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 import uuid
+
 from sqlalchemy import Uuid, DateTime, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from datetime import datetime, timezone
+
 from .base import Base
+
+if TYPE_CHECKING:
+    from .devices import Device
 
 
 class User(Base):
@@ -20,6 +26,4 @@ class User(Base):
 
     devices: Mapped[list["Device"]] = relationship(back_populates="user")
 
-    __table_args__ = (
-        UniqueConstraint("name", name="unique_user_name"),
-    )
+    __table_args__ = (UniqueConstraint("name", name="unique_user_name"),)

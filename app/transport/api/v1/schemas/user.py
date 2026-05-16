@@ -29,5 +29,9 @@ class UserDevice(BaseModel):
 
 class UserAnalytics(User):
     id: uuid.UUID
-    total: Annotated[Analytics, Field(..., description="Analytics for all user devices")]
-    devices: Annotated[List[DeviceAnalytics], Field(..., description="Analytics for each user device")]
+    total: Annotated[
+        Analytics, Field(..., description="Analytics for all user devices")
+    ]
+    devices: Annotated[
+        List[DeviceAnalytics], Field(..., description="Analytics for each user device")
+    ]

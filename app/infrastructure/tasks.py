@@ -21,7 +21,9 @@ def recalculate_device_analytics(device_id: str) -> None:
 
 async def _recalculate_device_analytics(device_id: uuid.UUID) -> None:
     async with task_db_helper.transaction() as session:
-        analytics = await repository.get_device_analytics(device_id, None, None, session)
+        analytics = await repository.get_device_analytics(
+            device_id, None, None, session
+        )
         await repository.upsert_device_analytics_cache(device_id, analytics, session)
         logger.info(
             "Recalculate device analytics device_id=%s count=%s",

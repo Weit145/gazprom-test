@@ -2,6 +2,7 @@ import datetime
 import logging
 import uuid
 
+from typing import Optional
 from fastapi import HTTPException, status
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.exc import IntegrityError
@@ -18,7 +19,12 @@ from app.transport.api.v1.schemas.device import (
     OutDevice,
     Period,
 )
-from app.transport.api.v1.schemas.user import CreateUser, OutUser, UserAnalytics, UserDevice
+from app.transport.api.v1.schemas.user import (
+    CreateUser,
+    OutUser,
+    UserAnalytics,
+    UserDevice,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -60,8 +66,8 @@ class Service:
     async def get_device_analytics(
         self,
         device_id: uuid.UUID,
-        date_from: datetime.datetime | None,
-        date_to: datetime.datetime | None,
+        date_from: Optional[datetime.datetime],
+        date_to: Optional[datetime.datetime],
         session: AsyncSession,
     ) -> DeviceAnalytics:
         self._validate_period(date_from, date_to)
@@ -81,7 +87,9 @@ class Service:
             ):
                 return self._to_device_analytics_from_cache(cache)
 
-        row = await self.repo.get_device_analytics(device_id, date_from, date_to, session)
+        row = await self.repo.get_device_analytics(
+            device_id, date_from, date_to, session
+        )
         return self._to_device_analytics(device_id, row, date_from, date_to)
 
     async def create_user(
@@ -128,8 +136,8 @@ class Service:
     async def get_user_analytics(
         self,
         user_id: uuid.UUID,
-        date_from: datetime.datetime | None,
-        date_to: datetime.datetime | None,
+        date_from: Optional[datetime.datetime],
+        date_to: Optional[datetime.datetime],
         session: AsyncSession,
     ) -> UserAnalytics:
         self._validate_period(date_from, date_to)
@@ -140,7 +148,9 @@ class Service:
                 detail="User not found",
             )
 
-        total_row = await self.repo.get_user_analytics(user_id, date_from, date_to, session)
+        total_row = await self.repo.get_user_analytics(
+            user_id, date_from, date_to, session
+        )
         device_rows = await self.repo.list_user_devices_analytics(
             user_id,
             date_from,
@@ -160,8 +170,8 @@ class Service:
         self,
         device_id: uuid.UUID,
         row: RowMapping,
-        date_from: datetime.datetime | None,
-        date_to: datetime.datetime | None,
+        date_from: Optional[datetime.datetime],
+        date_to: Optional[datetime.datetime],
     ) -> DeviceAnalytics:
         analytics = self._to_analytics(row, date_from, date_to)
         return DeviceAnalytics(
@@ -187,8 +197,8 @@ class Service:
     def _to_analytics(
         self,
         row: RowMapping,
-        date_from: datetime.datetime | None,
-        date_to: datetime.datetime | None,
+        date_from: Optional[datetime.datetime],
+        date_to: Optional[datetime.datetime],
     ) -> Analytics:
         return Analytics(
             period=Period(date_from=date_from, date_to=date_to),
@@ -221,8 +231,8 @@ class Service:
 
     def _validate_period(
         self,
-        date_from: datetime.datetime | None,
-        date_to: datetime.datetime | None,
+        date_from: Optional[datetime.datetime],
+        date_to: Optional[datetime.datetime],
     ) -> None:
         if date_from is not None and date_to is not None and date_from > date_to:
             raise HTTPException(

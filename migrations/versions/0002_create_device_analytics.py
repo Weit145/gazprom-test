@@ -5,6 +5,7 @@ Revises: 0001_create_users_devices
 Create Date: 2026-05-15 00:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op

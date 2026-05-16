@@ -32,12 +32,18 @@ class DataPoint(BaseModel):
 
 
 class Period(BaseModel):
-    date_from: Optional[datetime.datetime] = Field(None, description="Start date of the period")
-    date_to: Optional[datetime.datetime] = Field(None, description="End date of the period")
+    date_from: Optional[datetime.datetime] = Field(
+        None, description="Start date of the period"
+    )
+    date_to: Optional[datetime.datetime] = Field(
+        None, description="End date of the period"
+    )
 
 
 class Analytics(BaseModel):
-    period: Annotated[Period, Field(..., description="Period for which the analytics are calculated")]
+    period: Annotated[
+        Period, Field(..., description="Period for which the analytics are calculated")
+    ]
     x: Annotated[DataPoint, Field(..., description="Analytics for X coordinate")]
     y: Annotated[DataPoint, Field(..., description="Analytics for Y coordinate")]
     z: Annotated[DataPoint, Field(..., description="Analytics for Z coordinate")]
